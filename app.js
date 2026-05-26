@@ -1,357 +1,270 @@
-const el = (id) => document.getElementById(id);
+(() => {
+  'use strict';
 
-const state = {
-  lastController: null,
-};
+  const $ = (id) => document.getElementById(id);
 
-const importantHeaders = [
-  'content-type',
-  'location',
-  'x-rate-limit-plan',
-  'x-rate-limit-remaining',
-  'x-rate-limit-retry-after-seconds',
-  'ratelimit',
-  'ratelimit-policy',
-  'retry-after',
-  'access-control-allow-origin',
-  'access-control-allow-methods',
-  'access-control-allow-headers'
-];
-
-function init() {
-  el('currentOrigin').textContent = window.location.origin;
-  el('baseUrl').value = sessionStorage.getItem('physique.baseUrl') || 'https://physiquewebservice.onrender.com';
-  el('apiVersion').value = sessionStorage.getItem('physique.apiVersion') || '1';
-  el('idempotencyKey').value = crypto.randomUUID();
-  updateFinishBody();
-
-  ['usuarioId', 'treinoId', 'exercicioId'].forEach((id) => {
-    el(id).addEventListener('input', updateFinishBody);
-  });
-
-  el('saveSession').addEventListener('click', () => {
-    sessionStorage.setItem('physique.baseUrl', normalizeBaseUrl(el('baseUrl').value));
-    sessionStorage.setItem('physique.apiVersion', el('apiVersion').value);
-    showLocalMessage('Configuração salva para esta sessão. A API Key não foi salva por segurança.');
-  });
-
-  el('clearSession').addEventListener('click', () => {
-    sessionStorage.removeItem('physique.baseUrl');
-    sessionStorage.removeItem('physique.apiVersion');
-    el('baseUrl').value = 'https://physiquewebservice.onrender.com';
-    el('apiVersion').value = '1';
-    showLocalMessage('Sessão limpa.');
-  });
-
-  el('newIdempotencyKey').addEventListener('click', () => {
-    el('idempotencyKey').value = crypto.randomUUID();
-  });
-
-  document.querySelectorAll('[data-test]').forEach((button) => {
-    button.addEventListener('click', () => runPreset(button.dataset.test));
-  });
-
-  el('finishWorkout').addEventListener('click', finishWorkout);
-}
-
-function normalizeBaseUrl(value) {
-  return (value || '').trim().replace(/\/+$/, '');
-}
-
-function getConfig() {
-  return {
-    baseUrl: normalizeBaseUrl(el('baseUrl').value),
-    apiKey: el('apiKey').value.trim(),
-    apiVersion: el('apiVersion').value,
-    usuarioId: el('usuarioId').value || '1',
-    treinoId: el('treinoId').value || '1',
-    exercicioId: el('exercicioId').value || '1',
-  };
-}
-
-function defaultHeaders({ includeKey = true, version = null, json = false, idempotencyKey = null } = {}) {
-  const cfg = getConfig();
-  const headers = {};
-  if (json) headers['Content-Type'] = 'application/json';
-  if (includeKey && cfg.apiKey) headers['X-API-Key'] = cfg.apiKey;
-  if (version ?? cfg.apiVersion) headers['X-API-Version'] = version ?? cfg.apiVersion;
-  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
-  return headers;
-}
-
-function updateFinishBody() {
-  const cfg = getConfig();
-  const today = new Date().toISOString().slice(0, 10);
-  const body = {
-    usuarioId: Number(cfg.usuarioId),
-    treinoId: Number(cfg.treinoId),
-    data: today,
+  const defaultBody = () => JSON.stringify({
+    usuarioId: Number($('usuarioId')?.value || 1),
+    treinoId: Number($('treinoId')?.value || 1),
+    data: new Date().toISOString().slice(0, 10),
     series: [
       {
-        exercicioId: Number(cfg.exercicioId),
+        exercicioId: Number($('exercicioId')?.value || 1),
         numeroSerie: 1,
         repeticoes: 10,
         peso: 40
       }
     ]
-  };
-  el('finishBody').value = JSON.stringify(body, null, 2);
-}
+  }, null, 2);
 
-async function runPreset(test) {
-  const cfg = getConfig();
+  function init() {
+    $('originText').textContent = window.location.origin;
+    $('baseUrl').value = sessionStorage.getItem('physique_baseUrl') || 'https://physiquewebservice.onrender.com';
+    $('apiVersion').value = sessionStorage.getItem('physique_apiVersion') || '1';
+    $('apiKey').value = sessionStorage.getItem('physique_apiKey') || '';
+    $('idempotencyKey').value = sessionStorage.getItem('physique_idempotencyKey') || crypto.randomUUID();
+    $('bodyJson').value = sessionStorage.getItem('physique_bodyJson') || defaultBody();
 
-  const routes = {
-    apiDocs: {
-      title: 'GET /api-docs',
-      method: 'GET',
-      path: '/api-docs',
-      headers: {},
-    },
-    dashboard: {
-      title: `GET /dashboard/${cfg.usuarioId}`,
-      method: 'GET',
-      path: `/dashboard/${encodeURIComponent(cfg.usuarioId)}`,
-      headers: defaultHeaders({ includeKey: true }),
-    },
-    treinoV1: {
-      title: `GET /treinos/${cfg.treinoId} • V1`,
-      method: 'GET',
-      path: `/treinos/${encodeURIComponent(cfg.treinoId)}`,
-      headers: defaultHeaders({ includeKey: true, version: '1' }),
-    },
-    treinoV2: {
-      title: `GET /treinos/${cfg.treinoId} • V2`,
-      method: 'GET',
-      path: `/treinos/${encodeURIComponent(cfg.treinoId)}`,
-      headers: defaultHeaders({ includeKey: true, version: '2' }),
-    },
-    dashboardNoKey: {
-      title: `GET /dashboard/${cfg.usuarioId} sem X-API-Key`,
-      method: 'GET',
-      path: `/dashboard/${encodeURIComponent(cfg.usuarioId)}`,
-      headers: defaultHeaders({ includeKey: false }),
-    },
-    preflightDashboard: {
-      title: 'OPTIONS /dashboard/{usuarioId}',
-      method: 'OPTIONS',
-      path: `/dashboard/${encodeURIComponent(cfg.usuarioId)}`,
-      headers: {
-        'Access-Control-Request-Method': 'GET',
-        'Access-Control-Request-Headers': 'X-API-Key,X-API-Version,Content-Type',
-      },
-    },
-    preflightPost: {
-      title: 'OPTIONS /treinos/finalizar',
-      method: 'OPTIONS',
-      path: '/treinos/finalizar',
-      headers: {
-        'Access-Control-Request-Method': 'POST',
-        'Access-Control-Request-Headers': 'Content-Type,X-API-Key,X-API-Version,Idempotency-Key',
-      },
-    },
-  };
+    $('saveConfig').addEventListener('click', saveConfig);
+    $('clearConfig').addEventListener('click', clearConfig);
+    $('newIdempotencyKey').addEventListener('click', newIdempotencyKey);
+    $('resetBody').addEventListener('click', () => {
+      $('bodyJson').value = defaultBody();
+      sessionStorage.setItem('physique_bodyJson', $('bodyJson').value);
+    });
+    $('postFinalizar').addEventListener('click', postFinalizar);
+    $('clearResult').addEventListener('click', clearResult);
 
-  const request = routes[test];
-  if (!request) return;
-  await executeRequest(request);
-}
+    document.querySelectorAll('[data-action]').forEach((button) => {
+      button.addEventListener('click', () => runAction(button.dataset.action));
+    });
 
-async function finishWorkout() {
-  let parsedBody;
-  try {
-    parsedBody = JSON.parse(el('finishBody').value);
-  } catch (error) {
-    renderResult({
-      title: 'JSON inválido no body',
+    ['baseUrl', 'apiKey', 'apiVersion', 'bodyJson'].forEach((id) => {
+      $(id).addEventListener('change', saveConfigSilent);
+      $(id).addEventListener('input', saveConfigSilent);
+    });
+  }
+
+  function saveConfigSilent() {
+    sessionStorage.setItem('physique_baseUrl', sanitizeBaseUrl($('baseUrl').value));
+    sessionStorage.setItem('physique_apiVersion', $('apiVersion').value);
+    sessionStorage.setItem('physique_apiKey', $('apiKey').value.trim());
+    sessionStorage.setItem('physique_bodyJson', $('bodyJson').value);
+  }
+
+  function saveConfig() {
+    saveConfigSilent();
+    setStatus('ok', 'Configuração salva');
+    setSummary('ok', 'Configuração salva nesta sessão do navegador.');
+  }
+
+  function clearConfig() {
+    sessionStorage.clear();
+    $('apiKey').value = '';
+    $('baseUrl').value = 'https://physiquewebservice.onrender.com';
+    $('apiVersion').value = '1';
+    $('idempotencyKey').value = crypto.randomUUID();
+    $('bodyJson').value = defaultBody();
+    clearResult();
+    setStatus('', 'Aguardando teste');
+  }
+
+  function newIdempotencyKey() {
+    $('idempotencyKey').value = crypto.randomUUID();
+    sessionStorage.setItem('physique_idempotencyKey', $('idempotencyKey').value);
+  }
+
+  function sanitizeBaseUrl(value) {
+    return (value || '').trim().replace(/\/+$/, '');
+  }
+
+  function config() {
+    return {
+      baseUrl: sanitizeBaseUrl($('baseUrl').value),
+      apiKey: $('apiKey').value.trim(),
+      version: $('apiVersion').value,
+      usuarioId: $('usuarioId').value || '1',
+      treinoId: $('treinoId').value || '1',
+      exercicioId: $('exercicioId').value || '1'
+    };
+  }
+
+  function authHeaders(versionOverride) {
+    const cfg = config();
+    const headers = {
+      'Accept': 'application/json',
+      'X-API-Version': String(versionOverride || cfg.version || '1')
+    };
+    if (cfg.apiKey) headers['X-API-Key'] = cfg.apiKey;
+    return headers;
+  }
+
+  async function runAction(action) {
+    const cfg = config();
+    const routes = {
+      apiDocs: { method: 'GET', path: '/api-docs', headers: { 'Accept': 'application/json' } },
+      root: { method: 'GET', path: '/', headers: { 'Accept': 'application/json' } },
+      dashboard: { method: 'GET', path: `/dashboard/${cfg.usuarioId}`, headers: authHeaders() },
+      treinoV1: { method: 'GET', path: `/treinos/${cfg.treinoId}`, headers: authHeaders('1') },
+      treinoV2: { method: 'GET', path: `/treinos/${cfg.treinoId}`, headers: authHeaders('2') },
+      dashboardNoKey: { method: 'GET', path: `/dashboard/${cfg.usuarioId}`, headers: { 'Accept': 'application/json', 'X-API-Version': cfg.version || '1' } }
+    };
+    await callApi(routes[action]);
+  }
+
+  async function postFinalizar() {
+    saveConfigSilent();
+    let parsed;
+    try {
+      parsed = JSON.parse($('bodyJson').value);
+    } catch (error) {
+      setStatus('error', 'JSON inválido');
+      setSummary('error', 'O body informado não é um JSON válido. Corrija antes de enviar.');
+      $('resultOutput').textContent = String(error.message || error);
+      return;
+    }
+
+    const headers = authHeaders();
+    headers['Content-Type'] = 'application/json';
+    headers['Idempotency-Key'] = $('idempotencyKey').value.trim() || crypto.randomUUID();
+    sessionStorage.setItem('physique_idempotencyKey', headers['Idempotency-Key']);
+
+    await callApi({
       method: 'POST',
-      url: '/treinos/finalizar',
-      status: 'erro local',
-      duration: '-',
-      headers: {},
-      body: { error: 'JSON inválido', message: error.message },
-      diagnostic: 'Corrija o JSON antes de enviar para a API.'
-    });
-    return;
-  }
-
-  await executeRequest({
-    title: 'POST /treinos/finalizar',
-    method: 'POST',
-    path: '/treinos/finalizar',
-    headers: defaultHeaders({
-      includeKey: true,
-      json: true,
-      idempotencyKey: el('idempotencyKey').value.trim()
-    }),
-    body: JSON.stringify(parsedBody),
-  });
-}
-
-async function executeRequest({ title, method, path, headers = {}, body = null }) {
-  const cfg = getConfig();
-  const url = `${cfg.baseUrl}${path}`;
-  setLoading(true);
-  setMeta({ title, method, url, duration: 'executando...' });
-
-  const started = performance.now();
-
-  try {
-    const response = await fetch(url, {
-      method,
-      mode: 'cors',
+      path: '/treinos/finalizar',
       headers,
-      body,
+      body: JSON.stringify(parsed)
     });
+  }
 
-    const duration = `${Math.round(performance.now() - started)} ms`;
-    const contentType = response.headers.get('content-type') || '';
-    const rawText = await response.text();
-    const parsed = parseBody(rawText, contentType);
+  async function callApi(request) {
+    const cfg = config();
+    const url = `${cfg.baseUrl}${request.path}`;
+    setLoading(true);
+    setStatus('', 'Executando...');
+    setSummary('', `Chamando ${request.method} ${url}`);
 
-    renderResult({
-      title,
-      method,
-      url,
-      status: `${response.status} ${response.statusText}`,
-      ok: response.ok,
-      duration,
-      headers: extractHeaders(response.headers),
-      body: parsed,
-      diagnostic: buildHttpDiagnostic(response.status, path, method),
-    });
-  } catch (error) {
-    const duration = `${Math.round(performance.now() - started)} ms`;
-    renderResult({
-      title,
-      method,
-      url,
-      status: 'Falha na requisição',
-      ok: false,
-      duration,
-      headers: {},
-      body: {
+    const startedAt = performance.now();
+    try {
+      const response = await fetch(url, {
+        method: request.method,
+        headers: request.headers || {},
+        body: request.body,
+        mode: 'cors',
+        cache: 'no-store'
+      });
+
+      const elapsed = Math.round(performance.now() - startedAt);
+      const rawText = await response.text();
+      const body = tryParseJson(rawText);
+      const headers = pickHeaders(response.headers);
+
+      const payload = {
+        request: {
+          method: request.method,
+          url,
+          headers: maskHeaders(request.headers || {}),
+          body: request.body ? tryParseJson(request.body) : undefined
+        },
+        response: {
+          ok: response.ok,
+          status: response.status,
+          statusText: response.statusText,
+          elapsedMs: elapsed,
+          headers,
+          body
+        }
+      };
+
+      setStatus(response.ok ? 'ok' : 'error', `${response.status} ${response.statusText}`);
+      setSummary(response.ok ? 'ok' : 'error', `Resposta recebida: ${response.status} ${response.statusText} em ${elapsed}ms.`);
+      $('resultOutput').textContent = JSON.stringify(payload, null, 2);
+    } catch (error) {
+      const diagnostic = {
         error: 'Falha na requisição',
-        message: error.message,
+        message: error.message || String(error),
+        request: {
+          method: request.method,
+          url,
+          headers: maskHeaders(request.headers || {})
+        },
         possibleCauses: [
-          'A API está desligada ou a URL base está errada.',
-          'A origem do GitHub Pages não está liberada no CORS da API.',
-          'Você está em HTTPS chamando HTTP remoto, causando mixed content.',
-          'A rede bloqueou o acesso ao host/porta da API.',
+          'A URL base da API está errada ou a API está desligada.',
+          'A origem https://yukioarthur.github.io não está liberada no CORS.',
           'O backend não respondeu corretamente ao preflight OPTIONS.',
-          'O endpoint /api-docs foi configurado, mas o frontend ainda tenta /v3/api-docs.'
+          'O navegador bloqueou a requisição por CORS ou mixed content.',
+          'Algum header enviado pelo frontend não está em allowedHeaders.'
+        ],
+        nextChecks: [
+          'Abra https://physiquewebservice.onrender.com/ no navegador.',
+          'Abra https://physiquewebservice.onrender.com/api-docs no navegador.',
+          'No DevTools > Network, veja se a chamada OPTIONS falhou.',
+          'Confirme no Spring Boot se CorsConfig libera https://yukioarthur.github.io e allowedHeaders=*.'
         ]
-      },
-      diagnostic: buildCorsDiagnostic(cfg, method, path, headers),
+      };
+      setStatus('error', 'Failed to fetch');
+      setSummary('error', 'O navegador bloqueou ou não conseguiu completar a requisição. Veja o diagnóstico abaixo.');
+      $('resultOutput').textContent = JSON.stringify(diagnostic, null, 2);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function tryParseJson(text) {
+    if (!text) return null;
+    try { return JSON.parse(text); } catch { return text; }
+  }
+
+  function pickHeaders(headers) {
+    const keep = [
+      'content-type',
+      'location',
+      'x-rate-limit-plan',
+      'x-rate-limit-remaining',
+      'x-rate-limit-retry-after-seconds',
+      'ratelimit',
+      'ratelimit-policy',
+      'retry-after'
+    ];
+    const out = {};
+    keep.forEach((name) => {
+      const value = headers.get(name);
+      if (value !== null) out[name] = value;
     });
-  } finally {
-    setLoading(false);
+    return out;
   }
-}
 
-function parseBody(rawText, contentType) {
-  if (!rawText) return null;
-  if (contentType.includes('application/json')) {
-    try { return JSON.parse(rawText); } catch { return rawText; }
+  function maskHeaders(headers) {
+    return Object.fromEntries(Object.entries(headers).map(([key, value]) => {
+      if (key.toLowerCase() === 'x-api-key' && value) return [key, `${String(value).slice(0, 8)}...`];
+      return [key, value];
+    }));
   }
-  try { return JSON.parse(rawText); } catch { return rawText; }
-}
 
-function extractHeaders(headers) {
-  const output = {};
-  importantHeaders.forEach((name) => {
-    const value = headers.get(name);
-    if (value !== null) output[name] = value;
-  });
-  return output;
-}
+  function setLoading(loading) {
+    document.querySelectorAll('button').forEach((button) => {
+      if (button.id !== 'clearResult') button.disabled = loading;
+    });
+  }
 
-function renderResult({ title, method, url, status, ok, duration, headers, body, diagnostic }) {
-  el('resultTitle').textContent = title;
-  el('statusBadge').textContent = status;
-  el('statusBadge').className = `badge ${badgeClass(status, ok)}`;
-  setMeta({ title, method, url, duration });
-  el('headersOutput').textContent = stringify(headers || {});
-  el('bodyOutput').textContent = stringify(body);
-  el('diagnosticOutput').textContent = diagnostic;
-}
+  function setStatus(type, text) {
+    const dot = $('statusDot');
+    dot.className = 'dot';
+    if (type) dot.classList.add(type);
+    $('statusText').textContent = text;
+  }
 
-function setMeta({ method, url, duration }) {
-  el('metaMethod').textContent = method || '-';
-  el('metaUrl').textContent = url || '-';
-  el('metaDuration').textContent = duration || '-';
-}
+  function setSummary(type, text) {
+    const summary = $('resultSummary');
+    summary.className = 'result-summary';
+    if (type) summary.classList.add(type);
+    summary.textContent = text;
+  }
 
-function badgeClass(status, ok) {
-  if (ok) return 'ok';
-  const text = String(status || '');
-  if (text.startsWith('4')) return 'warn';
-  if (text.startsWith('5') || text.includes('Falha')) return 'error';
-  return 'neutral';
-}
+  function clearResult() {
+    $('resultOutput').textContent = 'Clique em um teste para executar.';
+    setSummary('', 'Nenhuma chamada executada ainda.');
+  }
 
-function stringify(value) {
-  if (value === null || value === undefined) return '-';
-  if (typeof value === 'string') return value;
-  return JSON.stringify(value, null, 2);
-}
-
-function buildHttpDiagnostic(status, path, method) {
-  const lines = [];
-  lines.push(`Chamada concluída: ${method} ${path}`);
-  lines.push(`Status HTTP: ${status}`);
-  if (status === 200 || status === 201) lines.push('OK: API respondeu com sucesso.');
-  if (status === 400) lines.push('400: entrada inválida, versionamento inválido ou Bean Validation.');
-  if (status === 401) lines.push('401: X-API-Key ausente, inválida ou expirada.');
-  if (status === 403) lines.push('403: chave válida, mas sem permissão, ou CORS inválido em chamada de navegador.');
-  if (status === 404) lines.push('404: rota ou recurso não encontrado.');
-  if (status === 409) lines.push('409: conflito, comum quando Idempotency-Key ainda está PROCESSING.');
-  if (status === 422) lines.push('422: mesma Idempotency-Key usada com payload diferente.');
-  if (status === 429) lines.push('429: rate limit excedido. Veja Retry-After.');
-  if (status >= 500) lines.push('500: erro interno. Verifique logs do Render/Spring Boot.');
-  return lines.join('\n');
-}
-
-function buildCorsDiagnostic(cfg, method, path, headers) {
-  const requestedHeaders = Object.keys(headers).join(',') || '(sem headers customizados)';
-  return [
-    'A requisição caiu no catch do fetch(). Em navegador, isso costuma indicar bloqueio de rede/CORS.',
-    '',
-    `Origem atual: ${window.location.origin}`,
-    `API base: ${cfg.baseUrl}`,
-    `Endpoint: ${method} ${path}`,
-    `Headers enviados: ${requestedHeaders}`,
-    '',
-    'No Spring Boot, confira se CorsConfig.java permite:',
-    '- Origin: https://yukioarthur.github.io',
-    '- Origin: https://physiquewebservice.onrender.com',
-    '- Métodos: GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    '- Headers: Content-Type, X-API-Key, X-API-Version, Idempotency-Key',
-    '- ApiKeyAuthenticationFilter e IdempotencyFilter ignoram OPTIONS',
-    '',
-    'Teste recomendado no terminal:',
-    `curl -i -X OPTIONS "${cfg.baseUrl}${path}" \\\n  -H "Origin: ${window.location.origin}" \\\n  -H "Access-Control-Request-Method: ${method === 'OPTIONS' ? 'GET' : method}" \\\n  -H "Access-Control-Request-Headers: Content-Type,X-API-Key,X-API-Version,Idempotency-Key"`
-  ].join('\n');
-}
-
-function setLoading(isLoading) {
-  document.querySelectorAll('button').forEach((button) => {
-    button.disabled = isLoading;
-  });
-}
-
-function showLocalMessage(message) {
-  renderResult({
-    title: 'Mensagem local',
-    method: '-',
-    url: '-',
-    status: 'local',
-    ok: true,
-    duration: '-',
-    headers: {},
-    body: { message },
-    diagnostic: 'Mensagem gerada pelo frontend, sem chamada para a API.'
-  });
-}
-
-init();
+  window.addEventListener('DOMContentLoaded', init);
+})();

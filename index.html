@@ -1,183 +1,135 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Physique API • Cliente de Testes</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Physique API • Test Client</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="hero">
     <div>
-      <p class="eyebrow">GitHub Pages → Render → Spring Boot → MySQL</p>
-      <h1>Physique API • Testes de CORS e Recursos Avançados</h1>
-      <p class="subtitle">Cliente estático para testar API Key, versionamento, idempotência, rate limit, CORS e documentação OpenAPI.</p>
+      <p class="eyebrow">GitHub Pages ↔ Render ↔ Spring Boot</p>
+      <h1>Physique API • Testes rápidos</h1>
+      <p class="subtitle">Cliente web simples para validar CORS, API Key, versionamento, rate limit, idempotência e Swagger/OpenAPI.</p>
     </div>
     <div class="status-card">
-      <span class="status-dot"></span>
-      <strong>Origem atual</strong>
-      <code id="currentOrigin">carregando...</code>
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText">Aguardando teste</span>
     </div>
   </header>
 
   <main class="layout">
-    <section class="panel config-panel">
-      <div class="section-title">
-        <span>1</span>
-        <div>
-          <h2>Configuração</h2>
-          <p>Preencha os dados para conectar no backend hospedado no Render.</p>
-        </div>
-      </div>
+    <section class="panel">
+      <h2>Configuração</h2>
+      <p class="hint">Preencha os dados abaixo. A chave fica apenas nesta sessão do navegador.</p>
 
-      <label>
-        URL base da API
-        <input id="baseUrl" type="url" value="https://physiquewebservice.onrender.com" autocomplete="off" />
-        <small>Use apenas a base, sem barra final. Exemplo: https://physiquewebservice.onrender.com</small>
-      </label>
+      <label for="baseUrl">URL base da API</label>
+      <input id="baseUrl" type="url" value="https://physiquewebservice.onrender.com" autocomplete="off" />
+      <small>Exemplo Render: https://physiquewebservice.onrender.com</small>
 
-      <label>
-        X-API-Key
-        <input id="apiKey" type="password" placeholder="Cole a API key aqui para testes" autocomplete="off" />
-        <small>Não salve essa chave no GitHub. Ela fica apenas no campo durante o teste.</small>
-      </label>
+      <label for="apiKey">X-API-Key</label>
+      <input id="apiKey" type="password" placeholder="Cole sua API Key aqui" autocomplete="off" />
+      <small>Use uma chave ALUNO para dashboard/treino e uma PROFESSOR/ADMIN para criar recursos.</small>
 
       <div class="grid-2">
-        <label>
-          X-API-Version
+        <div>
+          <label for="apiVersion">X-API-Version</label>
           <select id="apiVersion">
             <option value="1">1 — compatibilidade</option>
-            <option value="2">2 — resposta evoluída</option>
+            <option value="2">2 — resposta expandida</option>
+            <option value="99">99 — erro esperado</option>
           </select>
-        </label>
-
-        <label>
-          usuarioId
+        </div>
+        <div>
+          <label for="usuarioId">usuarioId</label>
           <input id="usuarioId" type="number" value="1" min="1" />
-        </label>
+        </div>
       </div>
 
       <div class="grid-2">
-        <label>
-          treinoId
+        <div>
+          <label for="treinoId">treinoId</label>
           <input id="treinoId" type="number" value="1" min="1" />
-        </label>
-
-        <label>
-          exercicioId
+        </div>
+        <div>
+          <label for="exercicioId">exercicioId</label>
           <input id="exercicioId" type="number" value="1" min="1" />
-        </label>
+        </div>
       </div>
+
+      <div class="button-row">
+        <button type="button" id="saveConfig">Salvar nesta sessão</button>
+        <button type="button" class="secondary" id="clearConfig">Limpar sessão</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Testes rápidos</h2>
+      <p class="hint">Comece pelo OpenAPI sem headers. Depois teste endpoints protegidos com X-API-Key.</p>
 
       <div class="actions">
-        <button id="saveSession" class="btn secondary">Salvar URL/versão nesta sessão</button>
-        <button id="clearSession" class="btn ghost">Limpar sessão</button>
+        <button type="button" data-action="apiDocs">GET /api-docs</button>
+        <button type="button" data-action="root">GET /</button>
+        <button type="button" data-action="dashboard">GET /dashboard/{usuarioId}</button>
+        <button type="button" data-action="treinoV1">GET /treinos/{treinoId} • V1</button>
+        <button type="button" data-action="treinoV2">GET /treinos/{treinoId} • V2</button>
+        <button type="button" class="danger" data-action="dashboardNoKey">GET dashboard sem X-API-Key</button>
       </div>
     </section>
 
-    <section class="panel flow-panel">
-      <div class="section-title">
-        <span>2</span>
-        <div>
-          <h2>Fluxo da requisição</h2>
-          <p>O navegador testa o mesmo caminho que um frontend real usaria.</p>
-        </div>
+    <section class="panel wide">
+      <h2>POST crítico • Idempotência</h2>
+      <p class="hint">Use a mesma Idempotency-Key para testar retry. Para uma operação nova, gere uma chave nova.</p>
+
+      <label for="idempotencyKey">Idempotency-Key</label>
+      <div class="inline-input">
+        <input id="idempotencyKey" type="text" autocomplete="off" />
+        <button type="button" class="secondary" id="newIdempotencyKey">Gerar nova</button>
       </div>
 
-      <ol class="flow">
-        <li><strong>GitHub Pages</strong><small>origem web externa</small></li>
-        <li><strong>Preflight OPTIONS</strong><small>quando há headers customizados</small></li>
-        <li><strong>CORS</strong><small>valida origem, métodos e headers</small></li>
-        <li><strong>X-API-Key</strong><small>autentica e identifica plano</small></li>
-        <li><strong>Rate limit</strong><small>controla limite por plano</small></li>
-        <li><strong>Idempotency-Key</strong><small>protege POST crítico</small></li>
-        <li><strong>Spring Boot + MySQL</strong><small>executa regra e persiste</small></li>
-      </ol>
-    </section>
+      <label for="bodyJson">Body JSON</label>
+      <textarea id="bodyJson" rows="12"></textarea>
 
-    <section class="panel tests-panel wide">
-      <div class="section-title">
-        <span>3</span>
-        <div>
-          <h2>Testes rápidos</h2>
-          <p>Botões reais usando <code>fetch()</code>. O resultado aparece no painel abaixo.</p>
-        </div>
-      </div>
-
-      <div class="button-grid">
-        <button class="btn" data-test="apiDocs">GET /api-docs</button>
-        <button class="btn" data-test="dashboard">GET /dashboard/{usuarioId}</button>
-        <button class="btn" data-test="treinoV1">GET /treinos/{treinoId} • V1</button>
-        <button class="btn" data-test="treinoV2">GET /treinos/{treinoId} • V2</button>
-        <button class="btn warning" data-test="dashboardNoKey">GET dashboard sem X-API-Key</button>
-        <button class="btn secondary" data-test="preflightDashboard">OPTIONS dashboard</button>
-        <button class="btn secondary" data-test="preflightPost">OPTIONS finalizar treino</button>
+      <div class="button-row">
+        <button type="button" id="postFinalizar">POST /treinos/finalizar</button>
+        <button type="button" class="secondary" id="resetBody">Restaurar body padrão</button>
       </div>
     </section>
 
-    <section class="panel post-panel wide">
-      <div class="section-title">
-        <span>4</span>
-        <div>
-          <h2>POST crítico com idempotência</h2>
-          <p>Use a mesma chave para testar retry. Gere nova chave para uma nova operação.</p>
-        </div>
-      </div>
-
-      <label>
-        Idempotency-Key
-        <div class="inline">
-          <input id="idempotencyKey" type="text" autocomplete="off" />
-          <button id="newIdempotencyKey" class="btn secondary" type="button">Gerar nova</button>
-        </div>
-      </label>
-
-      <label>
-        Body JSON
-        <textarea id="finishBody" rows="13"></textarea>
-      </label>
-
-      <div class="actions">
-        <button id="finishWorkout" class="btn danger">POST /treinos/finalizar</button>
-      </div>
-
-      <p class="hint">Retry: clique em finalizar duas vezes sem alterar body/chave. Para testar 422, mantenha a chave e altere o body.</p>
-    </section>
-
-    <section class="panel result-panel wide">
+    <section class="panel wide result-panel">
       <div class="result-header">
         <div>
-          <p class="eyebrow">Resultado da última chamada</p>
-          <h2 id="resultTitle">Nenhum teste executado</h2>
+          <h2>Resultado</h2>
+          <p class="hint">Aqui aparece status, URL, headers e body. Se der “Failed to fetch”, abra o DevTools → Console/Network.</p>
         </div>
-        <span id="statusBadge" class="badge neutral">aguardando</span>
+        <button type="button" class="secondary" id="clearResult">Limpar resultado</button>
       </div>
 
-      <div class="result-meta">
-        <div><strong>Método</strong><code id="metaMethod">-</code></div>
-        <div><strong>URL</strong><code id="metaUrl">-</code></div>
-        <div><strong>Duração</strong><code id="metaDuration">-</code></div>
+      <div class="result-summary" id="resultSummary">
+        Nenhuma chamada executada ainda.
       </div>
 
-      <details open>
-        <summary>Headers importantes</summary>
-        <pre id="headersOutput">-</pre>
-      </details>
+      <pre id="resultOutput">Clique em um teste para executar.</pre>
+    </section>
 
-      <details open>
-        <summary>Body / Erro</summary>
-        <pre id="bodyOutput">Clique em um teste para ver a resposta.</pre>
-      </details>
-
-      <details>
-        <summary>Diagnóstico CORS / Rede</summary>
-        <pre id="diagnosticOutput">Se aparecer "Failed to fetch", confira: CORS, URL base, HTTPS, preflight OPTIONS e se a API está online.</pre>
-      </details>
+    <section class="panel wide">
+      <h2>Fluxo de conexão</h2>
+      <ol class="flow">
+        <li><strong>GitHub Pages</strong> envia requisição pelo navegador.</li>
+        <li><strong>CORS</strong> valida a origem <code>https://yukioarthur.github.io</code>.</li>
+        <li><strong>API Key</strong> valida o header <code>X-API-Key</code>.</li>
+        <li><strong>Rate limit</strong> aplica limites por plano.</li>
+        <li><strong>Idempotência</strong> protege POSTs críticos com <code>Idempotency-Key</code>.</li>
+        <li><strong>Spring Boot</strong> consulta ou grava dados no MySQL.</li>
+        <li><strong>Render</strong> devolve JSON para o frontend.</li>
+      </ol>
     </section>
   </main>
 
   <footer>
-    <p>Physique API • Cliente estático para apresentação acadêmica</p>
+    <span>Physique API Test Client</span>
+    <span>Origem atual: <code id="originText"></code></span>
   </footer>
 
   <script src="app.js"></script>
