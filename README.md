@@ -1,119 +1,72 @@
-# Physique API Test Client — GitHub Pages
+# Physique API • Cliente GitHub Pages
 
-Frontend estático para testar CORS e integração com a Physique API.
+Frontend estático em HTML/CSS/JS puro para testar a API Spring Boot hospedada no Render.
 
-Ele foi feito para rodar em GitHub Pages sem build, sem Node, sem framework e sem dependências externas.
-
-## Arquivos
-
-```text
-index.html
-styles.css
-app.js
-README.md
-```
-
-## O que ele testa
-
-- `GET /v3/api-docs`
-- `GET /dashboard/{usuarioId}`
-- `GET /treinos/{treinoId}` com `X-API-Version: 1`
-- `GET /treinos/{treinoId}` com `X-API-Version: 2`
-- `POST /treinos/finalizar` com `Idempotency-Key`
-- Erro 401 sem `X-API-Key`
-- Headers de rate limit retornados pela API
-- CORS/preflight real feito pelo navegador
-
-## Como publicar no GitHub Pages
-
-1. Crie um repositório, por exemplo: `physique-api-test-client`.
-2. Suba estes arquivos na raiz do repositório.
-3. No GitHub, vá em Settings > Pages.
-4. Source: Deploy from a branch.
-5. Branch: `main`; Folder: `/root`.
-6. Acesse a URL gerada.
+## URL do frontend
 
 Exemplo:
 
 ```text
-https://SEU_USUARIO.github.io/physique-api-test-client/
+https://yukioarthur.github.io/physique-front/
 ```
 
-## Ajuste obrigatório no CORS da API
-
-A API precisa liberar a origem do GitHub Pages.
-
-No backend Spring Boot, a origem a liberar normalmente é:
+## URL da API
 
 ```text
-https://SEU_USUARIO.github.io
+https://physiquewebservice.onrender.com
 ```
 
-O path do repositório não entra no `allowedOrigins`.
+## Correções incluídas nesta versão
 
-## Headers usados pelo frontend
+- Botão corrigido de `/v3/api-docs` para `/api-docs`.
+- Painel visual de resposta HTTP, headers e body.
+- Diagnóstico mais claro para `Failed to fetch`.
+- Testes de `OPTIONS` para CORS/preflight.
+- Envio de `X-API-Key`, `X-API-Version` e `Idempotency-Key`.
+- Não salva API Key em `sessionStorage` nem no código.
 
-### Endpoints protegidos
+## O que o backend precisa liberar no CORS
 
-```http
-X-API-Key: SUA_CHAVE
-X-API-Version: 1
+No Spring Boot, libere as origens:
+
+```java
+"https://yukioarthur.github.io",
+"https://physiquewebservice.onrender.com"
 ```
 
-### POST crítico
+A origem do GitHub Pages é apenas `https://yukioarthur.github.io`, não inclui `/physique-front/`.
 
-```http
-X-API-Key: SUA_CHAVE
-X-API-Version: 1
-Idempotency-Key: UUID_DA_OPERACAO
-Content-Type: application/json
+Também permita os métodos:
+
+```java
+GET, POST, PUT, PATCH, DELETE, OPTIONS
 ```
 
-## Segurança
+E os headers:
 
-Não coloque `X-API-Key` fixa no código do GitHub Pages.
-
-Este frontend pede a chave manualmente no navegador. Isso evita publicar a chave no repositório.
-
-## Fluxo
-
-```text
-GitHub Pages
-  ↓
-Browser
-  ↓ preflight OPTIONS, se houver headers customizados
-Spring Boot API
-  ↓
-CORS valida Origin, Methods e Headers
-  ↓
-X-API-Key valida chave/plano
-  ↓
-Rate limit consome token
-  ↓
-Idempotency-Key valida POST crítico
-  ↓
-Bean Validation valida body
-  ↓
-Service/Repository
-  ↓
-MySQL da faculdade
-  ↓
-Beekeeper para inspeção
+```java
+Content-Type, Accept, Authorization, X-API-Key, X-API-Version, Idempotency-Key, X-Idempotency-Key, Origin, Cache-Control
 ```
 
-## Teste manual de preflight
+Para MVP acadêmico, pode usar:
 
-```bash
-curl -i -X OPTIONS "http://localhost:8080/treinos" \
-  -H "Origin: https://SEU_USUARIO.github.io" \
-  -H "Access-Control-Request-Method: POST" \
-  -H "Access-Control-Request-Headers: Content-Type,X-API-Key,Idempotency-Key,X-API-Version"
+```java
+configuration.setAllowedHeaders(List.of("*"));
 ```
 
-Esperado:
+## Como publicar no GitHub Pages
 
-```text
-Access-Control-Allow-Origin: https://SEU_USUARIO.github.io
-Access-Control-Allow-Methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
-Access-Control-Allow-Headers: Content-Type,X-API-Key,Idempotency-Key,X-API-Version
-```
+1. Suba `index.html`, `styles.css`, `app.js` e `README.md` no repositório.
+2. Vá em `Settings > Pages`.
+3. Selecione `Deploy from a branch`.
+4. Branch: `main`.
+5. Folder: `/root` ou `/docs`, conforme onde você colocou os arquivos.
+
+## Testes sugeridos
+
+1. GET `/api-docs`.
+2. GET `/dashboard/{usuarioId}` com `X-API-Key`.
+3. GET `/treinos/{treinoId}` V1.
+4. GET `/treinos/{treinoId}` V2.
+5. GET dashboard sem `X-API-Key` para mostrar 401.
+6. POST `/treinos/finalizar` com `Idempotency-Key`.
