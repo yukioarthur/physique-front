@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Physique API | CORS Test Client</title>
+  <meta name="description" content="Frontend estático para testar CORS, X-API-Key, X-API-Version, Idempotency-Key e endpoints da Physique API." />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="hero__content">
+      <p class="eyebrow">GitHub Pages • CORS • API REST</p>
+      <h1>Physique API Test Client</h1>
+      <p class="hero__text">Frontend estático para validar se a API Spring Boot aceita requisições cross-origin, envia headers de autenticação, aplica versionamento, idempotência e retorna erros padronizados.</p>
+      <div class="hero__actions"><a href="#config" class="button button--primary">Configurar teste</a><a href="#fluxo" class="button button--ghost">Ver fluxo</a></div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="grid cards">
+      <article class="card"><span class="card__label">Autenticação</span><h2>X-API-Key</h2><p>Endpoints protegidos exigem chave de API. A chave não deve ser salva no repositório público.</p></article>
+      <article class="card"><span class="card__label">Versionamento</span><h2>X-API-Version</h2><p>Permite testar V1/V2 mantendo o mesmo path, como <code>GET /treinos/{id}</code>.</p></article>
+      <article class="card"><span class="card__label">Idempotência</span><h2>Idempotency-Key</h2><p>POSTs críticos podem ser repetidos sem duplicar dados quando a chave e o payload são iguais.</p></article>
+      <article class="card"><span class="card__label">Rate limit</span><h2>Bucket4j</h2><p>Mostra headers como <code>X-Rate-Limit-Remaining</code> e tratamento de erro 429.</p></article>
+    </section>
+
+    <section id="config" class="panel">
+      <div class="section-title"><p class="eyebrow">Configuração</p><h2>Dados para conectar no backend</h2><p>Para GitHub Pages funcionar, a origem desta página precisa estar liberada no CORS da API. Origem atual: <code id="currentOrigin"></code></p></div>
+      <div class="form-grid">
+        <label>URL base da API<input id="apiBaseUrl" type="url" placeholder="http://localhost:8080" value="http://localhost:8080" /><small>Local: <code>http://localhost:8080</code>. Render: <code>https://seu-servico.onrender.com</code>.</small></label>
+        <label>X-API-Key<input id="apiKey" type="password" placeholder="Cole a API key aqui, sem salvar no código" /><small>Não coloque essa chave no GitHub. Use apenas durante o teste.</small></label>
+        <label>X-API-Version<select id="apiVersion"><option value="1">1 — compatibilidade</option><option value="2">2 — resposta evoluída</option></select></label>
+        <label>usuarioId<input id="usuarioId" type="number" min="1" value="1" /></label>
+        <label>treinoId<input id="treinoId" type="number" min="1" value="1" /></label>
+        <label>exercicioId<input id="exercicioId" type="number" min="1" value="1" /></label>
+      </div>
+      <div class="inline-actions"><button class="button button--primary" id="saveSettingsBtn">Salvar URL/versão nesta sessão</button><button class="button button--ghost" id="clearSettingsBtn">Limpar sessão</button></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-title"><p class="eyebrow">Testes rápidos</p><h2>Executar chamadas reais na API</h2><p>Chamadas com <code>X-API-Key</code>, <code>X-API-Version</code> e <code>Idempotency-Key</code> fazem o navegador disparar preflight <code>OPTIONS</code> automaticamente quando necessário.</p></div>
+      <div class="test-grid">
+        <button class="test-button" data-action="openapi">GET /v3/api-docs</button>
+        <button class="test-button" data-action="dashboard">GET /dashboard/{usuarioId}</button>
+        <button class="test-button" data-action="treino-v1">GET /treinos/{treinoId} • V1</button>
+        <button class="test-button" data-action="treino-v2">GET /treinos/{treinoId} • V2</button>
+        <button class="test-button test-button--warn" data-action="missing-key">GET dashboard sem X-API-Key</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="section-title"><p class="eyebrow">POST crítico</p><h2>Finalizar treino com idempotência</h2><p>Use a mesma <code>Idempotency-Key</code> para testar retry. Gere uma chave nova quando a operação for realmente nova.</p></div>
+      <div class="form-grid form-grid--two">
+        <label>Idempotency-Key<input id="idempotencyKey" type="text" /></label>
+        <div class="inline-actions inline-actions--end"><button class="button button--ghost" id="newIdempotencyKeyBtn">Gerar nova chave</button><button class="button button--primary" id="finalizarTreinoBtn">POST /treinos/finalizar</button></div>
+      </div>
+      <label class="textarea-label">Body JSON<textarea id="finalizarTreinoBody" rows="11"></textarea></label>
+      <p class="tip">Para testar retry: clique uma vez em finalizar, depois clique novamente sem alterar o body e sem trocar a Idempotency-Key. Para testar erro 422: mantenha a mesma chave e altere o body.</p>
+    </section>
+
+    <section class="panel">
+      <div class="section-title"><p class="eyebrow">Resultado</p><h2>Resposta da API</h2></div>
+      <div class="result-meta" id="resultMeta">Nenhuma requisição executada ainda.</div><pre id="resultBox" class="result-box"></pre>
+    </section>
+
+    <section id="fluxo" class="panel panel--dark">
+      <div class="section-title"><p class="eyebrow">Fluxo de conexão</p><h2>Como GitHub Pages, CORS, API e banco se conectam</h2></div>
+      <div class="flow"><div class="flow__node">GitHub Pages<br><small>HTML/CSS/JS estático</small></div><div class="flow__arrow">→</div><div class="flow__node">Browser<br><small>preflight OPTIONS</small></div><div class="flow__arrow">→</div><div class="flow__node">Spring Boot API<br><small>CORS + filtros</small></div><div class="flow__arrow">→</div><div class="flow__node">MySQL Faculdade<br><small>dados reais</small></div><div class="flow__arrow">→</div><div class="flow__node">Beekeeper<br><small>inspeção</small></div></div>
+      <ol class="steps"><li>O usuário abre o frontend publicado no GitHub Pages.</li><li>O navegador envia uma requisição para a API com origem <code>window.location.origin</code>.</li><li>Se houver headers customizados, o navegador envia antes uma requisição <code>OPTIONS</code>.</li><li>A API responde o preflight com <code>Access-Control-Allow-Origin</code>, métodos e headers permitidos.</li><li>A requisição real segue com <code>X-API-Key</code>, <code>X-API-Version</code> e, em POST crítico, <code>Idempotency-Key</code>.</li><li>O backend valida API Key, rate limit, idempotência, Bean Validation e regra de negócio.</li><li>Os dados são consultados ou gravados no MySQL da faculdade.</li><li>O Beekeeper confirma se os dados foram gravados sem duplicidade.</li></ol>
+      <div class="code-card"><h3>Origem que precisa estar liberada no backend</h3><pre><code id="originSnippet"></code></pre></div>
+      <div class="code-card"><h3>Teste manual de preflight com curl</h3><pre><code id="curlSnippet"></code></pre></div>
+    </section>
+  </main>
+  <footer class="footer"><p>Physique API Test Client — frontend estático para GitHub Pages.</p></footer>
+  <script src="./app.js"></script>
+</body>
+</html>
